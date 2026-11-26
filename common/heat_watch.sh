@@ -1,7 +1,7 @@
 #!/system/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Yudharn
-# HyperCool - Heat guard keeper: <limit 0.1 C> <cpu % while hot> <refresh Hz while hot, 0 = leave> <miui 0|1> [big-core cap %]
+# HyperCool - Heat guard keeper: <limit 0.1 C> <cpu % while hot> <refresh Hz while hot, 0 = leave> <miui 0|1> [big-core cap %] [5G off while hot 0|1]
 # Reads the battery temperature every 30 s (20 s while hot). At or above the limit the big / prime
 # cores get a lower scaling_max_freq and the refresh rate a lower peak; 3 C below the limit (and at
 # least 2 min later) both go back. A plain `sleep` does not wake the phone from deep sleep, so this
@@ -14,7 +14,7 @@ export PATH=/system/bin:/system/xbin:/vendor/bin:/data/adb/ksu/bin:/data/adb/ap/
 HC_DATA=${HC_DATA:-/data/adb/hypercool}
 MODDIR=${MODDIR:-/data/adb/modules/hypercool}
 HC_SYS=${HC_SYS:-/sys}
-LIM=$1; PCT=$2; RR=${3:-0}; MIUI=${4:-0}; CAP=${5:-0}
+LIM=$1; PCT=$2; RR=${3:-0}; MIUI=${4:-0}; CAP=${5:-0}; NRH=${6:-0}
 PIDF=$HC_DATA/heat_watch.pid
 STATE=$HC_DATA/heat_watch.state
 SAVE=$HC_DATA/heat.save
@@ -27,6 +27,9 @@ MODE=run; [ "$1" = restore ] && MODE=restore
 if [ "$MODE" = run ]; then
   for _a in "$LIM" "$PCT" "$RR" "$CAP"; do case "$_a" in ''|*[!0-9]*) exit 1 ;; esac; done
 fi
+# 5G off while hot (common/nr.sh, shared with the screen-off keeper)
+if [ -f "$MODDIR/common/nr.sh" ]; then . "$MODDIR/common/nr.sh"; else NRH=0; nr_want() { :; }; nr_sync() { :; }; fi
+[ "$NRH" = 1 ] || NRH=0
 
 # wrf: write a cpufreq limit. scaling_max_freq reads back the limit after thermal, which can be
 # lower than the value written, so only the write itself is checked here
@@ -105,6 +108,14 @@ hot_apply() {
     [ "$_c" -gt "$_s" ] || continue
     wrf "$_n" "$_s" && { HAPPLIED=1; saved cpu "$_n" || echo "cpu|$_n|$_b|$_s" >> "$SAVE"; }
   done
+  [ "$NRH" = 1 ] && [ ! -e "$NRD/nr.want.heat" ] && nr_want heat 1
+  if [ "$NRH" = 1 ] && [ ! -f "$NRD/nr.applied" ]; then
+    nr_sync
+    case $? in
+      0) [ -s "$NRSAVE" ] && HAPPLIED=1 ;;
+      3) nr_want heat 0; NRH=0; klog heat "5G off not possible" "$(cut -d'|' -f2 "$NRUNSUP" 2>/dev/null | head -n 1)" ;;
+    esac
+  fi
   [ "$RR" -gt 0 ] || return 0
   if rr_alive; then
     # the touch keeper owns the rate: it caps every rate it sets at this value while the file is there
@@ -128,6 +139,8 @@ hot_apply() {
 # cooled down / stopping: put back what is still as this keeper left it
 hot_leave() {
   rm -f "$RRF"
+  # 5G back (unless the screen-off keeper still wants it off); a call or tethering: tried again later
+  [ -e "$NRD/nr.want.heat" ] && { nr_want heat 0; nr_sync; }
   HL_BACK=0
   [ -s "$SAVE" ] || { HL_MSG=""; return 0; }
   _hk=""; _hn=0; _hs=0
@@ -185,7 +198,7 @@ HOT=0; SINCE=0; NHOT=0
 # HLOG = 1 once "Battery hot" is in the log for this hot period: the matching cool-down / put-back
 # line is written only then (no "Cooled down" for a hot period that lowered nothing)
 HLOG=0
-hot_log() { klog heat "Battery hot" "$(fmt "$1"): big cores ${PCT}%$([ "$RR" -gt 0 ] && echo ", ${RR} Hz") until $(fmt "$COOL")"; HLOG=1; }
+hot_log() { klog heat "Battery hot" "$(fmt "$1"): big cores ${PCT}%$([ "$RR" -gt 0 ] && echo ", ${RR} Hz")$([ "$NRH" = 1 ] && [ -s "$NRSAVE" ] && echo ", 5G off") until $(fmt "$COOL")"; HLOG=1; }
 # state file: written when hot/cool changes and at most every 10 min otherwise (no write every tick)
 _nlast=0; _nhot=x
 note() {
@@ -236,6 +249,7 @@ while :; do
   if [ "$HOT" = 0 ]; then
     # values that were not accepted when it cooled down: try again
     [ -s "$SAVE" ] && [ "$_t" -lt "$LIM" ] && hot_leave
+    [ "$NRH" = 1 ] && [ -s "$NRSAVE" ] && ! nr_wanted && nr_sync
     if [ "$_t" -ge "$LIM" ]; then
       HOT=1; SINCE=$_now; NHOT=$((NHOT + 1))
       HLOG=0

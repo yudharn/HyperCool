@@ -770,6 +770,8 @@ f_soff_prof() {
   _dxf=0; on x_dexopt_auto && _dxf=1
   _dra=0; on drain_alert && _dra=1
   _hib=0; on hibernate && _hib=1
+  # 5G off during screen-off: decided by f_nr_off (runs before this)
+  _nrs=${HC_NRS:-0}; _nrm=${HC_NRMIN:-5}
   _dxm=speed-profile
   case "$(cfg x_dexopt_mode 1)" in 2) _dxm=speed ;; 3) _dxm=everything ;; esac
   # Doze whitelist entries added by older builds (Deep Doze option)
@@ -786,7 +788,7 @@ f_soff_prof() {
   [ "$_dxf" = 0 ] && st x_dexopt_auto off
   [ "$_dra" = 0 ] && st drain_alert off
   [ "$_hib" = 0 ] && st hibernate off
-  [ "$_prof" = 0 ] && [ "$_wfk" = 0 ] && [ "$_cmp" = 0 ] && [ "$_rad" = 0 ] && [ "$_gcf" = 0 ] && [ "$_dxf" = 0 ] && [ "$_dra" = 0 ] && [ "$_hib" = 0 ] && [ "$_dat" = 0 ] && return
+  [ "$_prof" = 0 ] && [ "$_wfk" = 0 ] && [ "$_cmp" = 0 ] && [ "$_rad" = 0 ] && [ "$_gcf" = 0 ] && [ "$_dxf" = 0 ] && [ "$_dra" = 0 ] && [ "$_hib" = 0 ] && [ "$_dat" = 0 ] && [ "$_nrs" = 0 ] && return
   _sc=30; _sg=1; _sb=1; _st=0; _cc=0
   if [ "$_prof" = 1 ]; then
     _sc=$(rng soff_cpu 30 30 90); [ "$_sc" = 0 ] && _sc=30
@@ -801,14 +803,14 @@ f_soff_prof() {
     if ! ls -d /sys/devices/system/cpu/cpufreq/policy* >/dev/null 2>&1; then
       st soff_prof skipped "no cpufreq policies"
       _prof=0
-      [ "$_wfk" = 0 ] && [ "$_cmp" = 0 ] && [ "$_rad" = 0 ] && [ "$_gcf" = 0 ] && [ "$_dxf" = 0 ] && [ "$_dra" = 0 ] && [ "$_hib" = 0 ] && [ "$_dat" = 0 ] && return
+      [ "$_wfk" = 0 ] && [ "$_cmp" = 0 ] && [ "$_rad" = 0 ] && [ "$_gcf" = 0 ] && [ "$_dxf" = 0 ] && [ "$_dra" = 0 ] && [ "$_hib" = 0 ] && [ "$_dat" = 0 ] && [ "$_nrs" = 0 ] && return
     fi
   fi
   if [ "$_wfk" = 1 ]; then
     command -v svc >/dev/null 2>&1 && command -v cmd >/dev/null 2>&1 || {
       st wifi_keep skipped "no svc/cmd command on this Android"
       _wfk=0
-      [ "$_prof" = 0 ] && [ "$_cmp" = 0 ] && [ "$_rad" = 0 ] && [ "$_gcf" = 0 ] && [ "$_dxf" = 0 ] && [ "$_dra" = 0 ] && [ "$_hib" = 0 ] && [ "$_dat" = 0 ] && return
+      [ "$_prof" = 0 ] && [ "$_cmp" = 0 ] && [ "$_rad" = 0 ] && [ "$_gcf" = 0 ] && [ "$_dxf" = 0 ] && [ "$_dra" = 0 ] && [ "$_hib" = 0 ] && [ "$_dat" = 0 ] && [ "$_nrs" = 0 ] && return
     }
   fi
   if [ "$_cmp" = 1 ]; then
@@ -816,7 +818,7 @@ f_soff_prof() {
     case "$_co" in ''|*"Unknown command"*|*"unknown command"*)
       st x_compact skipped "this ROM has no 'cmd activity compact'"
       _cmp=0
-      [ "$_prof" = 0 ] && [ "$_wfk" = 0 ] && [ "$_rad" = 0 ] && [ "$_gcf" = 0 ] && [ "$_dxf" = 0 ] && [ "$_dra" = 0 ] && [ "$_hib" = 0 ] && [ "$_dat" = 0 ] && return ;;
+      [ "$_prof" = 0 ] && [ "$_wfk" = 0 ] && [ "$_rad" = 0 ] && [ "$_gcf" = 0 ] && [ "$_dxf" = 0 ] && [ "$_dra" = 0 ] && [ "$_hib" = 0 ] && [ "$_dat" = 0 ] && [ "$_nrs" = 0 ] && return ;;
     esac
   fi
   _rbt=0; _rmin=5
@@ -826,7 +828,7 @@ f_soff_prof() {
     command -v settings >/dev/null 2>&1 && command -v cmd >/dev/null 2>&1 || {
       st soff_radio skipped "no settings/cmd command on this Android"
       _rad=0
-      [ "$_prof" = 0 ] && [ "$_wfk" = 0 ] && [ "$_cmp" = 0 ] && [ "$_gcf" = 0 ] && [ "$_dxf" = 0 ] && [ "$_dra" = 0 ] && [ "$_hib" = 0 ] && [ "$_dat" = 0 ] && return
+      [ "$_prof" = 0 ] && [ "$_wfk" = 0 ] && [ "$_cmp" = 0 ] && [ "$_gcf" = 0 ] && [ "$_dxf" = 0 ] && [ "$_dra" = 0 ] && [ "$_hib" = 0 ] && [ "$_dat" = 0 ] && [ "$_nrs" = 0 ] && return
     }
   fi
   _dmin=5; _dmob=1; _dnfc=1
@@ -841,7 +843,7 @@ f_soff_prof() {
       st soff_data skipped "no settings/svc command on this Android"
       _dat=0
     fi
-    [ "$_prof" = 0 ] && [ "$_wfk" = 0 ] && [ "$_cmp" = 0 ] && [ "$_rad" = 0 ] && [ "$_dat" = 0 ] && [ "$_gcf" = 0 ] && [ "$_dxf" = 0 ] && [ "$_dra" = 0 ] && [ "$_hib" = 0 ] && return
+    [ "$_prof" = 0 ] && [ "$_wfk" = 0 ] && [ "$_cmp" = 0 ] && [ "$_rad" = 0 ] && [ "$_dat" = 0 ] && [ "$_gcf" = 0 ] && [ "$_dxf" = 0 ] && [ "$_dra" = 0 ] && [ "$_hib" = 0 ] && [ "$_nrs" = 0 ] && return
   fi
   _gcb=4; _gct=1; _gcm=45
   if [ "$_gcf" = 1 ]; then
@@ -853,7 +855,7 @@ f_soff_prof() {
     elif ! _gcd=$(gcf_dev); then
       st f2fs_gc skipped "/data is not F2FS or this kernel has no gc_urgent / unusable nodes"; _gcf=0
     fi
-    [ "$_prof" = 0 ] && [ "$_wfk" = 0 ] && [ "$_cmp" = 0 ] && [ "$_rad" = 0 ] && [ "$_gcf" = 0 ] && [ "$_dxf" = 0 ] && [ "$_dra" = 0 ] && [ "$_hib" = 0 ] && [ "$_dat" = 0 ] && return
+    [ "$_prof" = 0 ] && [ "$_wfk" = 0 ] && [ "$_cmp" = 0 ] && [ "$_rad" = 0 ] && [ "$_gcf" = 0 ] && [ "$_dxf" = 0 ] && [ "$_dra" = 0 ] && [ "$_hib" = 0 ] && [ "$_dat" = 0 ] && [ "$_nrs" = 0 ] && return
   fi
   if [ "$_dxf" = 1 ]; then
     if [ ! -f "$MODDIR/common/dxauto.sh" ] || [ ! -f "$MODDIR/common/dexopt.sh" ]; then
@@ -861,16 +863,16 @@ f_soff_prof() {
     elif ! command -v cmd >/dev/null 2>&1 || ! cmd package </dev/null 2>&1 | grep -q compile; then
       st x_dexopt_auto skipped "this ROM has no 'cmd package compile'"; _dxf=0
     fi
-    [ "$_prof" = 0 ] && [ "$_wfk" = 0 ] && [ "$_cmp" = 0 ] && [ "$_rad" = 0 ] && [ "$_gcf" = 0 ] && [ "$_dxf" = 0 ] && [ "$_dra" = 0 ] && [ "$_hib" = 0 ] && [ "$_dat" = 0 ] && return
+    [ "$_prof" = 0 ] && [ "$_wfk" = 0 ] && [ "$_cmp" = 0 ] && [ "$_rad" = 0 ] && [ "$_gcf" = 0 ] && [ "$_dxf" = 0 ] && [ "$_dra" = 0 ] && [ "$_hib" = 0 ] && [ "$_dat" = 0 ] && [ "$_nrs" = 0 ] && return
   fi
   _bl=""
   for _b in /sys/class/backlight/*/brightness /sys/class/leds/lcd-backlight/brightness; do
     [ -f "$_b" ] && { _bl=${_b#/sys/class/}; break; }
   done
   if command -v nice >/dev/null 2>&1; then
-    nohup nice -n 19 sh "$MODDIR/common/soff_watch.sh" "$_sc" "$_sg" "$_sb" "$_st" "$_cc" "$_prof" "$_wfk" "$_cmp" "$_rad" "$_rbt" "$_rmin" "$_gcf" "$_gcb" "$_gct" "$_gcm" "$_dxf" "$_dxm" "$_dat" "$_dmin" "$_dmob" "$_dnfc" "$_dra" "$_hib" >/dev/null 2>&1 &
+    nohup nice -n 19 sh "$MODDIR/common/soff_watch.sh" "$_sc" "$_sg" "$_sb" "$_st" "$_cc" "$_prof" "$_wfk" "$_cmp" "$_rad" "$_rbt" "$_rmin" "$_gcf" "$_gcb" "$_gct" "$_gcm" "$_dxf" "$_dxm" "$_dat" "$_dmin" "$_dmob" "$_dnfc" "$_dra" "$_hib" "$_nrs" "$_nrm" >/dev/null 2>&1 &
   else
-    nohup sh "$MODDIR/common/soff_watch.sh" "$_sc" "$_sg" "$_sb" "$_st" "$_cc" "$_prof" "$_wfk" "$_cmp" "$_rad" "$_rbt" "$_rmin" "$_gcf" "$_gcb" "$_gct" "$_gcm" "$_dxf" "$_dxm" "$_dat" "$_dmin" "$_dmob" "$_dnfc" "$_dra" "$_hib" >/dev/null 2>&1 &
+    nohup sh "$MODDIR/common/soff_watch.sh" "$_sc" "$_sg" "$_sb" "$_st" "$_cc" "$_prof" "$_wfk" "$_cmp" "$_rad" "$_rbt" "$_rmin" "$_gcf" "$_gcb" "$_gct" "$_gcm" "$_dxf" "$_dxm" "$_dat" "$_dmin" "$_dmob" "$_dnfc" "$_dra" "$_hib" "$_nrs" "$_nrm" >/dev/null 2>&1 &
   fi
   _i=0
   while [ "$_i" -lt 5 ] && ! hc_soff_pid >/dev/null; do sleep 1; _i=$((_i + 1)); done
@@ -1744,6 +1746,19 @@ hc_rr_pid() {
   case "$_rq" in ''|*[!0-9]*) return 1 ;; esac
   grep -q rr_watch "/proc/$_rq/cmdline" 2>/dev/null && echo "$_rq"
 }
+# rr_app - lower rate for chosen apps: the list goes to rr_app.list, prints the rate (0 = off / nothing to do)
+hc_rr_app_prep() {
+  rm -f "$HC_DATA/rr_app.list"
+  on rr_app || { echo 0; return; }
+  echo "$(cfg rr_app_pkgs "")" | tr ',' '\n' | grep -E '^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)+$' > "$HC_DATA/rr_app.list"
+  [ -s "$HC_DATA/rr_app.list" ] || { rm -f "$HC_DATA/rr_app.list"; echo 0; return; }
+  [ -r /dev/cpuset/top-app/cgroup.procs ] || { echo 0; return; }
+  _ah=$(rng rr_app_hz 60 30 120); [ "$_ah" = 0 ] && _ah=60
+  _aml=$(dumpsys display 2>/dev/null | grep -m 1 -i 'supportedModes' | grep -o 'fps=[0-9]*' | cut -d= -f2 | sort -un | tr '\n' ' ' | sed 's/ *$//')
+  # shellcheck disable=SC2086
+  [ -n "$_aml" ] && _ah=$(hc_near "$_ah" $_aml)
+  echo "$_ah"
+}
 f_rr_adapt() {
   # an old touch-only keeper puts the active rate back when it stops
   if _rq=$(hc_rr_pid); then
@@ -1751,6 +1766,9 @@ f_rr_adapt() {
     _i=0; while [ "$_i" -lt 5 ] && [ -d "/proc/$_rq" ]; do sleep 1; _i=$((_i + 1)); done
   fi
   rm -f "$HC_DATA/rr_watch.pid" "$HC_DATA/rr_watch.state"
+  # ROM rates left by an app-only keeper that was killed while a chosen app was open
+  [ -s "$HC_DATA/rr_app.save" ] && sh "$MODDIR/common/rr_watch.sh" restore </dev/null >/dev/null 2>&1
+  HC_RRAPP=$(hc_rr_app_prep)
   on rr_adapt || { restore_feature rr_adapt; st rr_adapt off; return; }
   # the peak cap owns the same settings: give them back first so the backup holds the ROM values
   restore_feature refresh_rate
@@ -1785,7 +1803,7 @@ f_rr_adapt() {
   # active rate only while touching: small keeper, idle rate again rr_hold s (1-5) after the last touch
   _rh=$(rng rr_hold 2 1 5); [ "$_rh" = 0 ] && _rh=2
   if command -v getevent >/dev/null 2>&1 && command -v mkfifo >/dev/null 2>&1; then
-    nohup sh "$MODDIR/common/rr_watch.sh" "$_mx" "$_mn" "$_rh" "$_mi" >/dev/null 2>&1 &
+    nohup sh "$MODDIR/common/rr_watch.sh" "$_mx" "$_mn" "$_rh" "$_mi" "${HC_RRAPP:-0}" adapt >/dev/null 2>&1 &
     _i=0; while [ "$_i" -lt 5 ] && ! hc_rr_pid >/dev/null; do sleep 1; _i=$((_i + 1)); done
   fi
   if _rq=$(hc_rr_pid); then
@@ -1839,12 +1857,67 @@ f_heat_guard() {
   case "$(settings get secure miui_refresh_rate </dev/null 2>/dev/null)" in ''|null) ;; *) _mi=1 ;; esac
   _cp=$(num cpu_cap 0); case "$_cp" in 1) _cp=95 ;; 2) _cp=88 ;; 3) _cp=80 ;; esac
   { [ "$_cp" -lt 40 ] || [ "$_cp" -ge 100 ]; } && _cp=0
-  nohup sh "$MODDIR/common/heat_watch.sh" "$((_ht * 10))" "$_hc" "$_hr" "$_mi" "$_cp" >/dev/null 2>&1 &
+  nohup sh "$MODDIR/common/heat_watch.sh" "$((_ht * 10))" "$_hc" "$_hr" "$_mi" "$_cp" "${HC_NRH:-0}" >/dev/null 2>&1 &
   _i=0; while [ "$_i" -lt 5 ] && ! hc_heat_pid >/dev/null; do sleep 1; _i=$((_i + 1)); done
   if _hq=$(hc_heat_pid); then
-    st heat_guard applied "battery at ${_ht} C or more: big cores ${_hc}%$([ "$_hr" -gt 0 ] && echo ", ${_hr} Hz"); back at $((_ht - 3)) C (keeper pid $_hq)"
+    st heat_guard applied "battery at ${_ht} C or more: big cores ${_hc}%$([ "$_hr" -gt 0 ] && echo ", ${_hr} Hz")$([ "${HC_NRH:-0}" = 1 ] && echo ", 5G off"); back at $((_ht - 3)) C (keeper pid $_hq)"
   else
     st heat_guard failed "keeper did not start"
+  fi
+}
+
+# nr_off - 5G off (common/nr.sh): during screen-off (screen-off keeper) and / or while Heat guard
+# holds the phone cool (Heat guard keeper). f_nr_off runs before both keepers start, f_nr_off_status after.
+HC_NRS=0; HC_NRH=0; HC_NRMIN=5
+f_nr_off() {
+  HC_NRS=0; HC_NRH=0
+  # wishes of keepers from before this boot are void; 5G left off by a keeper that was killed goes back
+  rm -f "$HC_DATA"/nr.want.* "$HC_DATA/nr.applied" "$HC_DATA/nr.unsup"
+  rm -rf "$HC_DATA/nr.lock"
+  _nl=0
+  if [ -f "$MODDIR/common/nr.sh" ]; then
+    # shellcheck source=/dev/null
+    . "$MODDIR/common/nr.sh" && _nl=1
+    if [ -s "$NRSAVE" ]; then
+      if nr_sync; then log "nr_off: 5G put back (left off by a keeper that stopped)"; else log "nr_off: 5G not put back yet (call / tethering or not accepted), kept for a retry"; fi
+    fi
+  fi
+  on nr_off || { st nr_off off; return; }
+  [ "$_nl" = 1 ] || { st nr_off skipped "nr.sh missing"; return; }
+  _sdk=$(getprop ro.build.version.sdk)
+  [ "${_sdk:-0}" -ge 31 ] || { st nr_off skipped "needs Android 12 or newer (allowed network types)"; return; }
+  _nok=""; _n5=""
+  for _sl in 0 1; do
+    _nv=$(nr_get "$_sl") || continue
+    _nok="$_nok $_sl"
+    [ $((_nv & NRBIT)) -ne 0 ] && _n5="$_n5 $_sl"
+  done
+  [ -n "$_nok" ] || { st nr_off skipped "no SIM network type readable (cmd phone get-allowed-network-types-for-users)"; return; }
+  HC_NRS=$(cfg nr_off_soff 1); [ "$HC_NRS" = 1 ] || HC_NRS=0
+  HC_NRH=$(cfg nr_off_heat 0); [ "$HC_NRH" = 1 ] || HC_NRH=0
+  HC_NRMIN=$(rng nr_off_min 5 1 60); [ "$HC_NRMIN" = 0 ] && HC_NRMIN=5
+  [ "$HC_NRS" = 0 ] && [ "$HC_NRH" = 0 ] && st nr_off skipped "neither 'during screen-off' nor 'while Heat guard is cooling' is ticked"
+  NR_SLOTS=$_nok; NR_5G=$_n5
+  return 0
+}
+f_nr_off_status() {
+  on nr_off || return 0
+  [ "$HC_NRS" = 0 ] && [ "$HC_NRH" = 0 ] && return 0
+  _nw=""; _nx=""
+  if [ "$HC_NRS" = 1 ]; then
+    if _sp=$(hc_soff_pid); then _nw="after ${HC_NRMIN} min of screen-off until the screen turns on (screen-off keeper pid $_sp)"; else _nx="screen-off keeper did not start"; fi
+  fi
+  if [ "$HC_NRH" = 1 ]; then
+    if ! on heat_guard; then _nx="${_nx:+$_nx; }'while Heat guard is cooling' needs Heat guard on"
+    elif _hq=$(hc_heat_pid); then _nw="${_nw:+$_nw; }while Heat guard holds the phone cool (keeper pid $_hq)"
+    else _nx="${_nx:+$_nx; }Heat guard keeper not running"; fi
+  fi
+  _nsim="SIM slot$(echo "$NR_SLOTS" | grep -q ' .* ' && echo s)${NR_SLOTS}"
+  [ -n "$NR_5G" ] || _nsim="$_nsim, 5G is not allowed there now (nothing to switch until you pick 5G again)"
+  if [ -n "$_nw" ]; then
+    st nr_off "$([ -n "$_nx" ] && echo partial || echo applied)" "5G off (4G kept) $_nw; not during a call or tethering; $_nsim${_nx:+; $_nx}"
+  else
+    st nr_off failed "${_nx:-no trigger running}"
   fi
 }
 
@@ -1940,7 +2013,9 @@ f_bat_watch() {
     st temp_warn off
   fi
   [ "$_bp$_bh$_bw" = 000 ] && return 0
-  nohup sh "$MODDIR/common/bat_watch.sh" "$_bp" "$((_pt * 10))" "$_pl" "$_how" "$_bh" "$_bw" "$((_bwt * 10))" "${_bg:-0}" "${_bgs:-1}" >/dev/null 2>&1 &
+  _bwc=$(cfg temp_warn_cause 1); [ "$_bwc" = 0 ] || _bwc=1
+  _bwr=$(cfg temp_warn_rise 0); [ "$_bwr" = 1 ] || _bwr=0
+  nohup sh "$MODDIR/common/bat_watch.sh" "$_bp" "$((_pt * 10))" "$_pl" "$_how" "$_bh" "$_bw" "$((_bwt * 10))" "${_bg:-0}" "${_bgs:-1}" "$_bwc" "$_bwr" >/dev/null 2>&1 &
   _i=0; while [ "$_i" -lt 5 ] && ! hc_bat_pid >/dev/null; do sleep 1; _i=$((_i + 1)); done
   if _bq=$(hc_bat_pid); then
     _bd="keeper pid $_bq"
@@ -1952,7 +2027,7 @@ f_bat_watch() {
       st chg_pause applied "$_pw; switches ($_how): ${_nl% }; the one that works is found the first time charging is paused ($_bd)"
     fi
     [ "$_bh" = 1 ] && st bat_hist applied "level, temperature and screen every 5 min, last 48 h ($_bd)"
-    [ "$_bw" = 1 ] && st temp_warn applied "notification at ${_bwt} C, again after it was 3 C cooler ($_bd)"
+    [ "$_bw" = 1 ] && st temp_warn applied "notification at ${_bwt} C$([ "$_bwr" = 1 ] && echo " (earlier when it rises 3 C in 5 min from $((_bwt - 4)) C)"), again after it was 3 C cooler$([ "$_bwc" = 1 ] && echo "; names the busiest app, GPU load and charging power") ($_bd)"
   else
     [ "$_bp" = 1 ] && st chg_pause failed "keeper did not start"
     [ "$_bh" = 1 ] && st bat_hist failed "keeper did not start"
@@ -2094,6 +2169,41 @@ f_refresh_rate() {
   set_s refresh_rate secure user_refresh_rate "$_hz"
   set_s refresh_rate secure miui_refresh_rate "$_hz"
   fin refresh_rate "peak ${_hz}Hz"
+}
+
+# rr_app - lower rate for chosen apps (common/rr_watch.sh): with Adaptive refresh rate its keeper caps
+# the rates itself; without it a keeper in app mode leaves the ROM rates alone until a chosen app is
+# in front. Runs after f_refresh_rate, so a fixed rate cap is what comes back when the app is closed.
+f_rr_app() {
+  on rr_app || { st rr_app off; return; }
+  if [ "${HC_RRAPP:-0}" = 0 ]; then
+    if [ -z "$(cfg rr_app_pkgs "")" ]; then st rr_app off "no apps picked"
+    elif [ ! -r /dev/cpuset/top-app/cgroup.procs ]; then st rr_app skipped "no top-app cpuset (/dev/cpuset/top-app) to see the app on screen"
+    else st rr_app skipped "none of the picked apps has a valid package name"; fi
+    return
+  fi
+  _an=$(grep -c . "$HC_DATA/rr_app.list" 2>/dev/null)
+  if on rr_adapt; then
+    if _rq=$(hc_rr_pid); then
+      st rr_app applied "${HC_RRAPP} Hz at most while one of $_an chosen apps is on screen, checked at each touch (Adaptive refresh rate keeper pid $_rq)"
+    else
+      st rr_app failed "the Adaptive refresh rate keeper is not running"
+    fi
+    return
+  fi
+  if ! command -v getevent >/dev/null 2>&1 || ! command -v mkfifo >/dev/null 2>&1; then
+    st rr_app skipped "no getevent / mkfifo on this ROM"; return
+  fi
+  _mi=0
+  case "$(settings get secure miui_refresh_rate </dev/null 2>/dev/null)" in ''|null) ;; *) _mi=1 ;; esac
+  _rh=$(rng rr_hold 2 1 5); [ "$_rh" = 0 ] && _rh=2
+  nohup sh "$MODDIR/common/rr_watch.sh" 0 0 "$_rh" "$_mi" "$HC_RRAPP" app >/dev/null 2>&1 &
+  _i=0; while [ "$_i" -lt 5 ] && ! hc_rr_pid >/dev/null; do sleep 1; _i=$((_i + 1)); done
+  if _rq=$(hc_rr_pid); then
+    st rr_app applied "${HC_RRAPP} Hz at most while one of $_an chosen apps is on screen, the ROM rate otherwise; checked at each touch (keeper pid $_rq)"
+  else
+    st rr_app failed "keeper did not start ($(cat "$HC_DATA/rr_watch.state" 2>/dev/null || echo "no getevent"))"
+  fi
 }
 
 # screen_res - lower screen resolution: wm size and wm density at screen_res % (90 / 80 / 75), so

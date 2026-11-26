@@ -8,9 +8,10 @@
 # and mobile data / NFC off after a screen-off (DATA=1, DMIN minutes, DMOB=1 mobile data, DNFC=1 NFC: common/radio.sh)
 # and automatic app optimization (DXF=1, DXM mode: dex2oat, screen off 10 min, once a week, no force recompile: common/dxauto.sh)
 # and hibernation of background apps (HIB=1: common/hibernate.sh, settings read live)
+# and 5G off after a screen-off (NRS=1, NRMIN minutes: common/nr.sh, shared with Heat guard)
 # and the screen-off drain check (DRA=1: notification on high drain, the app that held wake locks the longest)
 # and F2FS garbage collection (GCF=1: screen off 10 min, once a week, battery under GCT-5 C; GCGB trigger in GB, GCTRIM=1 adds fstrim, GCT stop temperature: common/f2gc.sh)
-PCT=$1 GPU=$2 BST=$3 TCH=$4 CAP=${5:-0} PROF=${6:-1} WIFI=${7:-0} COMPACT=${8:-0} RADIO=${9:-0} RBT=${10:-0} RMIN=${11:-15} GCF=${12:-0} GCGB=${13:-4} GCTRIM=${14:-1} GCT=${15:-45} DXF=${16:-0} DXM=${17:-speed-profile} DATA=${18:-0} DMIN=${19:-10} DMOB=${20:-1} DNFC=${21:-1} DRA=${22:-0} HIB=${23:-0}
+PCT=$1 GPU=$2 BST=$3 TCH=$4 CAP=${5:-0} PROF=${6:-1} WIFI=${7:-0} COMPACT=${8:-0} RADIO=${9:-0} RBT=${10:-0} RMIN=${11:-15} GCF=${12:-0} GCGB=${13:-4} GCTRIM=${14:-1} GCT=${15:-45} DXF=${16:-0} DXM=${17:-speed-profile} DATA=${18:-0} DMIN=${19:-10} DMOB=${20:-1} DNFC=${21:-1} DRA=${22:-0} HIB=${23:-0} NRS=${24:-0} NRMIN=${25:-5}
 HC_DATA=/data/adb/hypercool
 MODDIR=/data/adb/modules/hypercool
 PIDF=$HC_DATA/soff_watch.pid
@@ -37,6 +38,11 @@ RRETRY=${HC_RRETRY:-300}; RTRIES=${HC_RTRIES:-12}
 RSAVE=$HC_DATA/soff_radio.save
 DSAVE=$HC_DATA/soff_data.save
 case "$DMIN" in ''|*[!0-9]*) DMIN=10 ;; esac
+case "$NRMIN" in ''|*[!0-9]*) NRMIN=5 ;; esac
+NDELAY=${HC_NDELAY:-$((NRMIN * 60))}; NRETRY=${HC_NRETRY:-60}
+if [ "$NRS" = 1 ] && [ -f "$MODDIR/common/nr.sh" ]; then . "$MODDIR/common/nr.sh"; else NRS=0; fi
+# 5G back unless Heat guard still wants it off (its keeper decides then)
+nr_back() { [ "$NRS" = 1 ] || return 0; nr_want soff 0; nr_sync; }
 DDELAY=${HC_DDELAY:-$((DMIN * 60))}; DRETRY=${HC_DRETRY:-300}; DTRIES=${HC_DTRIES:-24}
 if [ -f "$MODDIR/common/radio.sh" ]; then . "$MODDIR/common/radio.sh"; else DATA=0; radio_off() { :; }; radio_restore() { :; }; data_off() { :; }; data_restore() { :; }; fi
 case "$GCGB" in ''|*[!0-9]*) GCGB=4 ;; esac
@@ -365,11 +371,12 @@ restore() {
   fi
 }
 
-trap 'jobs_stop; restore; radio_restore; data_restore; ev_stop; rm -f "$PIDF"; exit 0' TERM INT HUP
+trap 'jobs_stop; restore; radio_restore; data_restore; nr_back; ev_stop; rm -f "$PIDF"; exit 0' TERM INT HUP
 # values left by a keeper that was killed while the screen was off
 restore
 radio_restore
 data_restore
+nr_back
 gcf_restore restart
 dxa_stop restart
 : >> "$SAVE"
@@ -382,6 +389,7 @@ ev_start "$HC_DATA/soff_watch.fifo"
 _csince=0; _cdone=1; _clast=0; _cruns=0
 _rsince=0; _rdone=1; _rtries=0; _rnext=0; _rcnt=0; _rlast=""
 _dnext=0; _ddone=1; _dtries=0; _dcnt=0; _dlast=""; _dseen=0
+_nnext=0; _ndone=1; _ncnt=0; _nlast=""; _nbad=0
 _gnext=0; _gdone=1; _gtries=0; _gcnt=0; _glast=""
 _xnext=0; _xdone=1; _xtries=0; _xcnt=0; _xlast=""
 _pnext=0
@@ -393,7 +401,7 @@ feed_now() {
 note() {
   [ -n "$1" ] && { _scr=$1; _since=$(date '+%H:%M:%S'); }
   feed_now; _fd=$_fn
-  echo "screen=$_scr since=$_since changed=$(grep -c . "$SAVE") offs=$_offs feed=$_fd$([ "$SCR_BLBAD" = 1 ] && echo " backlight=ignored")${_al:+ last_off_caps=$_al}$([ "$WIFI" = 1 ] && echo " wifi_on=$_wcnt${_wlast:+ wifi_last=$_wlast}${_wpause:+ wifi_pauses=$_wpause}")$([ "$RADIO" = 1 ] && echo " radio_off=$_rcnt${_rlast:+ radio_last=$_rlast}")$([ "$DATA" = 1 ] && echo " data_off=$_dcnt${_dlast:+ data_last=$_dlast}")$([ "$GCF" = 1 ] && echo " gc_runs=$_gcnt${_glast:+ gc_last=$_glast}")$([ "$DXF" = 1 ] && echo " dex_runs=$_xcnt${_xlast:+ dex_last=$_xlast}")$([ "$HIB" = 1 ] && echo " hib_runs=$_hcnt${_hlast:+ hib_last=$_hlast}") put_back=$_bok${_blast:+ put_back_last=$_blast}" > "$STATE"
+  echo "screen=$_scr since=$_since changed=$(grep -c . "$SAVE") offs=$_offs feed=$_fd$([ "$SCR_BLBAD" = 1 ] && echo " backlight=ignored")${_al:+ last_off_caps=$_al}$([ "$WIFI" = 1 ] && echo " wifi_on=$_wcnt${_wlast:+ wifi_last=$_wlast}${_wpause:+ wifi_pauses=$_wpause}")$([ "$RADIO" = 1 ] && echo " radio_off=$_rcnt${_rlast:+ radio_last=$_rlast}")$([ "$DATA" = 1 ] && echo " data_off=$_dcnt${_dlast:+ data_last=$_dlast}")$([ "$GCF" = 1 ] && echo " gc_runs=$_gcnt${_glast:+ gc_last=$_glast}")$([ "$DXF" = 1 ] && echo " dex_runs=$_xcnt${_xlast:+ dex_last=$_xlast}")$([ "$HIB" = 1 ] && echo " hib_runs=$_hcnt${_hlast:+ hib_last=$_hlast}")$([ "$NRS" = 1 ] && echo " nr_off=$_ncnt${_nlast:+ nr_last=$_nlast}") put_back=$_bok${_blast:+ put_back_last=$_blast}" > "$STATE"
 }
 note on
 while :; do
@@ -411,6 +419,7 @@ while :; do
       [ "$COMPACT" = 1 ] && { _csince=$(date +%s); _cdone=0; }
       [ "$RADIO" = 1 ] && { _rsince=$(date +%s); _rdone=0; _rtries=0; _rnext=$((_rsince + RDELAY)); }
       [ "$DATA" = 1 ] && { _dnext=$(( $(date +%s) + DDELAY )); _ddone=0; _dtries=0; _dseen=0; }
+      [ "$NRS" = 1 ] && { _nnext=$(( $(date +%s) + NDELAY )); _ndone=0; }
       [ "$GCF" = 1 ] && { _gnext=$(( $(date +%s) + GCDELAY )); _gdone=0; _gtries=0; }
       [ "$DXF" = 1 ] && { _xnext=$(( $(date +%s) + DXDELAY )); _xdone=0; _xtries=0; }
       [ "$HIB" = 1 ] && { _hmin=$(hib_min); _hnext=$(( $(date +%s) + ${HC_HDELAY:-$((_hmin * 60))} )); _hdone=0; }
@@ -506,6 +515,25 @@ while :; do
         [ "$_dkw" -lt "$_ew" ] && _ew=$_dkw
       fi
     fi
+    if [ "$NRS" = 1 ] && [ "$_ndone" = 0 ]; then
+      _nkn=$(date +%s)
+      if [ "$_nkn" -ge "$_nnext" ]; then
+        nr_want soff 1; nr_sync; _nkr=$?
+        case "$_nkr" in
+          0) _ndone=1
+             if [ -s "$NRSAVE" ]; then _ncnt=$((_ncnt + 1)); _nlast=$(date '+%H:%M:%S'); note ""; fi ;;
+          # call or tethering: look again in a minute, for as long as the screen stays off
+          2) _nnext=$((_nkn + NRETRY)) ;;
+          *) _ndone=1; nr_want soff 0
+             [ "$_nbad" = 0 ] && klog screen-off "5G off not possible" "$(cut -d'|' -f2 "$NRUNSUP" 2>/dev/null | head -n 1)"
+             _nbad=1 ;;
+        esac
+      fi
+      if [ "$_ndone" = 0 ]; then
+        _nkw=$((_nnext - _nkn)); [ "$_nkw" -lt 1 ] && _nkw=1
+        [ "$_nkw" -lt "$_ew" ] && _ew=$_nkw
+      fi
+    fi
     if [ "$GCF" = 1 ] && [ "$_gdone" = 0 ]; then
       _gkn=$(date +%s)
       if [ "$_gkn" -ge "$_gnext" ]; then
@@ -566,6 +594,7 @@ while :; do
       restore
       radio_restore
       data_restore
+      _ndone=1; nr_back
       note on
       # one line per screen-off period, and only when something was switched (no line for a plain on/off)
       _kl=$((_rb + _rrb + _drb))
@@ -592,6 +621,8 @@ while :; do
         _dcj=$!
       fi
     fi
+    # 5G not back yet (a call or tethering at screen-on): try again
+    [ "$NRS" = 1 ] && [ -s "$NRSAVE" ] && ! nr_wanted && nr_sync
     ev_wait 60 3
   fi
 done
@@ -599,6 +630,7 @@ jobs_stop
 restore
 radio_restore
 data_restore
+nr_back
 ev_stop
 rm -f "$PIDF"
 kstop screen-off "${_why:-stopped}, values put back"

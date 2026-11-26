@@ -134,8 +134,8 @@ _hc_wait_boot() {
 # rate, which would land on top of the stock value restored below
 _hc_stop_rr() {
   _rq=$(cat "$HC_DATA/rr_watch.pid" 2>/dev/null)
-  case "$_rq" in ''|*[!0-9]*) return 0 ;; esac
-  grep -q rr_watch "/proc/$_rq/cmdline" 2>/dev/null || return 0
+  case "$_rq" in ''|*[!0-9]*) _hc_rr_app; return ;; esac
+  grep -q rr_watch "/proc/$_rq/cmdline" 2>/dev/null || { _hc_rr_app; return; }
   kill "$_rq" 2>/dev/null
   _i=0; while [ "$_i" -lt 5 ] && [ -d "/proc/$_rq" ]; do sleep 1; _i=$((_i + 1)); done
   # do not let a keeper that ignored TERM write its active rate after the stock value is restored.
@@ -151,6 +151,15 @@ _hc_stop_rr() {
   fi
   [ -d "/proc/$_rq" ] && return 1
   rm -f "$HC_DATA/rr_watch.pid"
+  _hc_rr_app
+}
+# ROM rates left by an app-only keeper ("Lower rate for chosen apps") that was killed
+_hc_rr_app() {
+  [ -s "$HC_DATA/rr_app.save" ] || return 0
+  for _rl in "$HC_DATA/rr_watch.sh" "${MODDIR:-/data/adb/modules/hypercool}/common/rr_watch.sh"; do
+    [ -f "$_rl" ] && { HC_DATA_RR=$HC_DATA sh "$_rl" restore </dev/null >/dev/null 2>&1; break; }
+  done
+  [ -s "$HC_DATA/rr_app.save" ] && return 1
   return 0
 }
 
@@ -181,6 +190,21 @@ _hc_heat() {
     [ -f "$_hl" ] && { HC_DATA=$HC_DATA sh "$_hl" restore </dev/null >/dev/null 2>&1; break; }
   done
   [ -s "$HC_DATA/heat.save" ] && return 1
+  return 0
+}
+
+# 5G switched off by the screen-off keeper or Heat guard that did not stop cleanly
+_hc_nr() {
+  [ -s "$HC_DATA/nr.save" ] || return 0
+  for _nl in "$HC_DATA/nr.sh" "${MODDIR:-/data/adb/modules/hypercool}/common/nr.sh"; do
+    [ -f "$_nl" ] || continue
+    # shellcheck source=/dev/null
+    . "$_nl"
+    rm -f "$HC_DATA"/nr.want.* "$HC_DATA/nr.applied"
+    nr_sync
+    break
+  done
+  [ -s "$HC_DATA/nr.save" ] && return 1
   return 0
 }
 
@@ -451,6 +475,8 @@ _hc_main() {
     _hc_radios || _rc=1
     # refresh rate / CPU limits of a Heat guard keeper that did not stop cleanly
     _hc_heat || _rc=1
+    # 5G of both keepers (after they are stopped)
+    _hc_nr || _rc=1
     # charging paused by a battery keeper that did not stop cleanly
     hc_batp_release || _rc=1
     # Game battery mode: Android keeps game modes across reboots, so they are put back here

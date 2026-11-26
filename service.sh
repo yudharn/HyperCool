@@ -155,6 +155,7 @@ f_saver_dim
 f_smart_px
 f_rr_adapt
 f_refresh_rate
+f_rr_app
 f_anim_scale
 f_screen_res
 
@@ -204,11 +205,15 @@ if grep -qE '^phase=(discharge|charge|hold)$' "$HC_DATA/bcal.state" 2>/dev/null;
   log "battery calibration in progress: keeper started"
 fi
 
+# ---------- 5G off: boot clean-up, then the triggers of the two keepers below ----------
+f_nr_off
+
 # ---------- screen-off profile keeper (after everything else, so it saves the final values) ----------
 f_soff_prof
 
 # ---------- heat guard keeper (experimental) ----------
 f_heat_guard
+f_nr_off_status
 
 # ---------- Game battery mode (Android Game Mode); its game list is also the one for bypass while gaming ----------
 f_game_mode
@@ -220,7 +225,9 @@ f_bat_watch
 cp -f "$HC_BOOTCFG" "$HC_DATA/last_applied.conf"
 cp -f "$MODDIR/common/restore.sh" "$HC_DATA/restore.sh"
 cp -f "$MODDIR/common/radio.sh" "$HC_DATA/radio.sh"
+cp -f "$MODDIR/common/nr.sh" "$HC_DATA/nr.sh"
 cp -f "$MODDIR/common/heat_watch.sh" "$HC_DATA/heat_watch.sh"
+cp -f "$MODDIR/common/rr_watch.sh" "$HC_DATA/rr_watch.sh"
 cp -f "$MODDIR/common/soff_restore.sh" "$HC_DATA/soff_restore.sh"
 mkdir -p /data/adb/service.d
 cp -f "$MODDIR/common/hc_guard.sh" /data/adb/service.d/.hypercool_guard.sh && chmod 0755 /data/adb/service.d/.hypercool_guard.sh
@@ -248,7 +255,7 @@ fi
 
 _hgst=$(sed -n 's/^heat_guard=//p' "$HC_STATUS" 2>/dev/null | tail -n 1)
 case "$_hgst" in applied*|partial*) _hgrun=", heat guard running" ;; *) _hgrun="" ;; esac
-_desc="Heat and battery fix for Android - $(hc_soc_label) (one-shot at boot${_hgrun}$(hc_bat_pid >/dev/null && echo ", battery keeper running")$({ on soff_prof || on wifi_keep || on x_compact || on soff_radio || on soff_data || on drain_alert || on hibernate || on f2fs_gc || on x_dexopt_auto; } && echo ", screen-off keeper running")). Last boot: $_a applied, $_p partial, $_s unsupported, $_f failed, $_o off. Configure in WebUI. Telegram Channel: @ModuleArchives."
+_desc="Heat and battery fix for Android - $(hc_soc_label) (one-shot at boot${_hgrun}$(hc_bat_pid >/dev/null && echo ", battery keeper running")$({ on soff_prof || on wifi_keep || on x_compact || on soff_radio || on soff_data || on nr_off || on drain_alert || on hibernate || on f2fs_gc || on x_dexopt_auto; } && echo ", screen-off keeper running")). Last boot: $_a applied, $_p partial, $_s unsupported, $_f failed, $_o off. Configure in WebUI. Telegram Channel: @ModuleArchives."
 sed -i "s#^description=.*#description=$_desc#" "$MODDIR/module.prop"
 
 # ---------- boot notification ----------

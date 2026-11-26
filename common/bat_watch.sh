@@ -4,6 +4,7 @@
 # HyperCool - battery keeper: charging pause / bypass, battery history and temperature warning
 #   bat_watch.sh <pause 0|1> <pause temp 0.1 C, 0 = none> <pause level %, 0 = none> <auto|bypass|cut>
 #                <history 0|1> <warning 0|1> <warning temp 0.1 C> <bypass while gaming 0|1> <screen on only 0|1>
+#                [name the cause 0|1] [early warning when it heats up fast 0|1]
 # Checks every 20 s while a charger is plugged in and every 60 s otherwise (5 s while a charge current
 # limit holds the bypass, the ROM thermal service may raise it again). A plain sleep does not wake the
 # phone from deep sleep, so it only runs while the phone is awake anyway.
@@ -27,7 +28,8 @@ HC_SYS=${HC_SYS:-/sys}
 BP=${HC_BPROC:-/proc}
 PS=$HC_SYS/class/power_supply
 PAUSE=${1:-0}; PT=${2:-0}; PL=${3:-0}; HOW=${4:-auto}; HIST=${5:-0}; WARN=${6:-0}; WT=${7:-450}; GAME=${8:-0}; GSCR=${9:-1}
-for _a in "$PAUSE" "$PT" "$PL" "$HIST" "$WARN" "$WT" "$GAME" "$GSCR"; do case "$_a" in ''|*[!0-9]*) exit 1 ;; esac; done
+WCAUSE=${10:-1}; WRISE=${11:-0}
+for _a in "$PAUSE" "$PT" "$PL" "$HIST" "$WARN" "$WT" "$GAME" "$GSCR" "$WCAUSE" "$WRISE"; do case "$_a" in ''|*[!0-9]*) exit 1 ;; esac; done
 case "$HOW" in auto|bypass|cut) ;; *) HOW=auto ;; esac
 PIDF=$HC_DATA/bat_watch.pid
 STATE=$HC_DATA/bat_watch.state
@@ -348,16 +350,87 @@ pause_tick() {
 }
 
 # ---------------------------------------------------------------- temperature warning
-WARNED=0; NWARN=0
+WARNED=0; NWARN=0; WBACK=0
+# temperatures of the last 6 min, "<epoch>:<0.1 C>" (one per tick), for the rise in the last 5 min
+TH=""; RW=${HC_BRISE:-300}
+th_add() {
+  _tn=$(date +%s); _tk=""
+  for _e in $TH; do [ $((_tn - ${_e%%:*})) -le $((RW + 60)) ] && _tk="$_tk $_e"; done
+  TH="$_tk $_tn:$1"
+}
+# rise in 0.1 C against the oldest sample that is 4.5 min old or more (empty = not enough history yet)
+th_rise() {
+  _tn=$(date +%s)
+  for _e in $TH; do
+    [ $((_tn - ${_e%%:*})) -ge $((RW * 9 / 10)) ] && { echo $(($1 - ${_e#*:})); return 0; }
+  done
+  return 1
+}
+# what makes it hot now: the busiest app (CPU over 2 s, cpunow.sh), the GPU load and the charging power.
+# Sets WC_TXT (notification) and WC_LOG (Recent activity); runs only when a warning goes out.
+warn_cause() {
+  WC_TXT=""; WC_LOG=""
+  _wa=""; _wp=""; _wo=""; _wq=""
+  if [ "$WCAUSE" = 1 ] && [ -f "$MODDIR/common/cpunow.sh" ]; then
+    # R|<percent of one core>|<pid>|<uid>|<name>, busiest first
+    while IFS='|' read -r _r _pc _pi _pu _pn; do
+      [ "$_r" = R ] || continue
+      [ -z "$_wo" ] && { _wo=${_pn%%:*}; _wq=${_pc%.*}; }
+      case "$_pu" in ''|*[!0-9]*) continue ;; esac
+      [ "$_pu" -ge 10000 ] || continue
+      _wa=${_pn%%:*}; _wp=${_pc%.*}; break
+    done <<EOF_CN
+$(sh "$MODDIR/common/cpunow.sh" 2 </dev/null 2>/dev/null)
+EOF_CN
+    # an app under 10% of a core is not the cause: name the busiest process instead, if it is busy
+    if [ -n "$_wa" ] && [ "${_wp:-0}" -ge 10 ]; then
+      WC_TXT="Busiest app: $_wa (CPU ${_wp}%)"; WC_LOG="busiest app $_wa ${_wp}% CPU"
+    elif [ -n "$_wo" ] && [ "${_wq:-0}" -ge 25 ]; then
+      WC_TXT="Busiest: $_wo (CPU ${_wq}%)"; WC_LOG="busiest process $_wo ${_wq}% CPU"
+    fi
+  fi
+  [ "$WCAUSE" = 1 ] || return 0
+  _gb=""
+  if [ -r "$HC_SYS/class/kgsl/kgsl-3d0/gpu_busy_percentage" ]; then
+    _gb=$(rd "$HC_SYS/class/kgsl/kgsl-3d0/gpu_busy_percentage" | tr -dc '0-9')
+  elif [ -r "$HC_SYS/kernel/ged/hal/gpu_utilization" ]; then
+    _gb=$(rd "$HC_SYS/kernel/ged/hal/gpu_utilization" | awk '{print $1+0}')
+  fi
+  case "$_gb" in ''|*[!0-9]*) ;; *)
+    [ "$_gb" -ge 30 ] && { WC_TXT="${WC_TXT:+$WC_TXT, }GPU ${_gb}%"; WC_LOG="${WC_LOG:+$WC_LOG; }GPU ${_gb}%"; } ;;
+  esac
+  return 0
+}
+# charging power in W (one decimal), empty when not charging or not readable
+chg_watts() {
+  [ "$(bstatus)" = Charging ] || return 1
+  _cv=$(rd "$PS/battery/voltage_now"); _ci=$(rd "$PS/battery/current_now"); _ci=${_ci#-}
+  case "$_cv$_ci" in ''|*[!0-9]*) return 1 ;; esac
+  awk -v v="$_cv" -v i="$_ci" 'BEGIN { w = v * i / 1e12; if (w < 0.5 || w > 300) exit 1; printf "%.1f", w }'
+}
 warn_tick() {
   [ "$WARN" = 1 ] && [ -n "$_t" ] || return 0
-  if [ "$WARNED" = 0 ] && [ "$_t" -ge "$WT" ]; then
-    WARNED=1; NWARN=$((NWARN + 1))
-    _wm="Battery at $(fmt "$_t")$(plugged && echo " while charging"). Let the phone cool down: stop gaming or charging for a while."
+  th_add "$_t"
+  _wr=$(th_rise "$_t") || _wr=""
+  _wfast=0
+  # early warning: 3 C or more in 5 min, from 4 C below the limit
+  [ "$WRISE" = 1 ] && [ -n "$_wr" ] && [ "$_wr" -ge 30 ] && [ "$_t" -ge $((WT - 40)) ] && _wfast=1
+  # WARNED: 0 none, 1 at the limit, 2 early warning (the limit itself still warns once more)
+  if { [ "$WARNED" != 1 ] && [ "$_t" -ge "$WT" ]; } || { [ "$WARNED" = 0 ] && [ "$_wfast" = 1 ]; }; then
+    # the next warning only after it was 3 C below the limit (or below where an early warning went out)
+    if [ "$_t" -ge "$WT" ]; then WARNED=1; WBACK=$((WT - 30)); else WARNED=2; WBACK=$((_t - 30)); fi
+    NWARN=$((NWARN + 1))
+    warn_cause
+    _ww=""; [ "$WCAUSE" = 1 ] && plugged && _ww=$(chg_watts)
+    _wup=""; [ -n "$_wr" ] && [ "$_wr" -ge 5 ] && _wup=$(awk -v r="$_wr" 'BEGIN { printf "+%.1f C in the last 5 min", r / 10 }')
+    _wh="Battery at $(fmt "$_t")"; [ "$_t" -lt "$WT" ] && _wh="Battery heating up fast: $(fmt "$_t")"
+    _wm="$_wh$(plugged && echo " while charging${_ww:+ ($_ww W)}")$(screen_on || echo " with the screen off")${_wup:+, $_wup}.${WC_TXT:+ $WC_TXT.} Let the phone cool down: stop gaming or charging for a while."
+    # no quotes inside the text: it goes through su -c in single quotes
+    _wm=$(printf '%s' "$_wm" | tr -d "'\"")
     su -lp 2000 -c "cmd notification post -S bigtext -t 'HyperCool' hc_temp '$_wm'" </dev/null >/dev/null 2>&1 ||
       cmd notification post -S bigtext -t HyperCool hc_temp "$_wm" </dev/null >/dev/null 2>&1
-    klog battery "Battery hot" "$(fmt "$_t"), warning at $(fmt "$WT")"
-  elif [ "$WARNED" = 1 ] && [ "$_t" -le $((WT - 30)) ]; then
+    klog battery "$([ "$_t" -lt "$WT" ] && echo "Battery heating up fast" || echo "Battery hot")" "$(fmt "$_t"), warning at $(fmt "$WT")${_wup:+; $_wup}$(plugged && echo "; charging${_ww:+ $_ww W}")$(screen_on || echo "; screen off")${WC_LOG:+; $WC_LOG}"
+  elif [ "$WARNED" != 0 ] && [ "$_t" -le "$WBACK" ]; then
     WARNED=0
   fi
 }

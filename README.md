@@ -99,13 +99,14 @@ Everything is configured via WebUI and applied on the next boot. Only lightweigh
 - CPU keeper: puts the caps back when the ROM undoes them
 - UI blur off and cooler charging
 - Heat guard (experimental): lower refresh rate and big-core limit while the battery is hot
-- Pause / bypass charging when hot, at a level or while gaming (charging switch, 0 mA current limit or charger input off; Qualcomm and MediaTek), battery temperature warning
+- Pause / bypass charging when hot, at a level or while gaming (charging switch, 0 mA current limit or charger input off; Qualcomm and MediaTek), battery temperature warning that names the busiest app
 - Game battery mode: Android Game Mode with a 60 FPS cap and lower render resolution for games
 
 **Battery drain (kernel)**
 - Adaptive screen-off power profile, deep CPU sleep, UFS power saving
 - Fewer writeback wakeups, kernel debug off, kernel wakelock blocker
 - Screen-off: keep Wi-Fi on, Location / Bluetooth off, mobile data / NFC off (back on at screen-on)
+- 5G off (4G kept) during screen-off and / or while Heat guard cools the phone
 - Hibernate background apps a few minutes after the screen goes off (Protected, default and in-use apps are skipped), plus Hibernate apps now on Home
 - Screen-off drain check: drain per screen-off, alert when high, and the app that kept the phone awake
 - F2FS cleanup and app optimization (dex2oat) once a week with the screen off
@@ -122,7 +123,7 @@ Everything is configured via WebUI and applied on the next boot. Only lightweigh
 
 **Long battery**
 - Stronger Battery Saver with auto level, screen dimming, Smart Pixels
-- Refresh rate cap, adaptive refresh rate, animation scale, lower screen resolution
+- Refresh rate cap, adaptive refresh rate, lower rate for chosen apps, animation scale, lower screen resolution
 
 **Extras**
 - Scheduler, I/O and common kernel tuning, balanced system defaults, MiGT / Metis off

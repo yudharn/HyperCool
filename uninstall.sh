@@ -10,8 +10,10 @@ MD=${0%/*}; [ -f "$MD/common/radio.sh" ] || MD=/data/adb/modules/hypercool
 mkdir -p "$HC_DATA" 2>/dev/null
 [ -f "$MD/common/restore.sh" ] && cp -f "$MD/common/restore.sh" "$HC_DATA/restore.sh" 2>/dev/null
 [ -f "$MD/common/radio.sh" ] && cp -f "$MD/common/radio.sh" "$HC_DATA/radio.sh" 2>/dev/null
+[ -f "$MD/common/nr.sh" ] && cp -f "$MD/common/nr.sh" "$HC_DATA/nr.sh" 2>/dev/null
 [ -f "$MD/common/soff_restore.sh" ] && cp -f "$MD/common/soff_restore.sh" "$HC_DATA/soff_restore.sh" 2>/dev/null
 [ -f "$MD/common/heat_watch.sh" ] && cp -f "$MD/common/heat_watch.sh" "$HC_DATA/heat_watch.sh" 2>/dev/null
+[ -f "$MD/common/rr_watch.sh" ] && cp -f "$MD/common/rr_watch.sh" "$HC_DATA/rr_watch.sh" 2>/dev/null
 # stop the cache keeper
 _cp=$(cat "$HC_DATA/cache_keeper.pid" 2>/dev/null)
 case "$_cp" in ''|*[!0-9]*) ;; *) grep -q cache_clean "/proc/$_cp/cmdline" 2>/dev/null && kill "$_cp" 2>/dev/null ;; esac
@@ -91,6 +93,15 @@ if [ -f "$_RLIB" ]; then
   # mobile data / NFC the keeper switched off
   [ -s "$HC_DATA/soff_data.save" ] && data_restore
 fi
+# 5G the screen-off keeper or Heat guard switched off (both are stopped above)
+_NLIB=$HC_DATA/nr.sh
+[ -f "$_NLIB" ] || _NLIB=$MD/common/nr.sh
+if [ -s "$HC_DATA/nr.save" ] && [ -f "$_NLIB" ]; then
+  # shellcheck source=/dev/null
+  . "$_NLIB"
+  rm -f "$HC_DATA"/nr.want.* "$HC_DATA/nr.applied"
+  nr_sync
+fi
 # gc_urgent / wake lock of a F2FS GC run that was still going
 if [ -s "$HC_DATA/f2fs_gc.save" ] || [ -s "$HC_DATA/f2fs_gc.fpid" ]; then
   # shellcheck source=/dev/null
@@ -117,6 +128,8 @@ case "$_rq" in ''|*[!0-9]*) ;; *) grep -q rr_watch "/proc/$_rq/cmdline" 2>/dev/n
     kill -9 "$_rq" 2>/dev/null
     _i=0; while [ "$_i" -lt 2 ] && [ -d "/proc/$_rq" ]; do sleep 1; _i=$((_i + 1)); done
   fi ;; esac
+# ROM rates left by an app-only refresh rate keeper that was killed while a chosen app was open
+[ -s "$HC_DATA/rr_app.save" ] && [ -f "$HC_DATA/rr_watch.sh" ] && HC_DATA_RR=$HC_DATA sh "$HC_DATA/rr_watch.sh" restore </dev/null >/dev/null 2>&1
 # forced deep Doze left behind by that keeper
 [ -f "$HC_DATA/doze_forced" ] && dumpsys deviceidle unforce >/dev/null 2>&1
 # the runtime props of the RAM optimizer (ro.lmk.*) are put back
