@@ -3714,6 +3714,9 @@ html[data-style="mono"],html[data-style="mono"] body{
       ['5G off during screen-off and heat', 'Off by default, Android 12 or newer. The phone uses 4G while the screen is off or while Heat guard cools it, then goes back to 5G. Never during a call or tethering.'],
       ['Lower refresh rate for chosen apps', 'Off by default. Video, reading or map apps you pick run at 60 Hz while they are on screen, with or without Adaptive refresh rate.'],
       ['Temperature warning says why', 'The warning now names the busiest app, the GPU load, the charging power and how fast it heated up. It can also warn earlier when the battery heats up fast.']
+    ],
+    '2.4.2': [
+      ['Bluetooth and NFC come back reliably', 'After a screen-off, Bluetooth or NFC could stay off: the restore read its save file on stdin, so a skipped entry was lost when the file was emptied. Every saved radio is put back now, also at boot, on Revert and when the module is disabled.']
     ]
   };
   function whatsNew(ver) {
