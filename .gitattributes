@@ -1,0 +1,13 @@
+# Android runs these scripts with bash, which rejects CRLF line endings.
+# Without this, core.autocrlf=true on Windows checks them out with CRLF and
+# the module fails to install ("Failed to install module script").
+*.sh text eol=lf
+*.prop text eol=lf
+META-INF/com/google/android/update-binary text eol=lf
+META-INF/com/google/android/updater-script text eol=lf
+
+# The WebUI is served as-is; keep it byte-identical to what the browser parses.
+*.html text eol=lf
+*.txt text eol=lf
+*.conf text eol=lf
+.gitattributes text eol=lf
