@@ -295,7 +295,7 @@ _hc_radios_fallback() {
   _fb_rc=0
   if [ -s "$HC_DATA/soff_radio.save" ]; then
     _fb_fail=""
-    while IFS='|' read -r _fk _fv; do
+    while IFS='|' read -r _fk _fv <&3; do
       case "$_fk" in
         loc)
           _fl=$(_hc_fb_loc_now)
@@ -336,7 +336,7 @@ _hc_radios_fallback() {
         *) _fb_fail="${_fb_fail}$_fk|$_fv
 " ;;
       esac
-    done < "$HC_DATA/soff_radio.save"
+    done 3< "$HC_DATA/soff_radio.save"
     if [ -n "$_fb_fail" ]; then
       printf '%s' "$_fb_fail" > "$HC_DATA/soff_radio.save" || _fb_rc=1
     else
@@ -346,7 +346,7 @@ _hc_radios_fallback() {
   fi
   if [ -s "$HC_DATA/soff_data.save" ]; then
     _fb_fail=""
-    while IFS='|' read -r _fk _fv; do
+    while IFS='|' read -r _fk _fv <&3; do
       case "$_fk" in
         data)
           _fd=$(_hc_fb_data_now)
@@ -364,7 +364,7 @@ _hc_radios_fallback() {
         *) _fb_fail="${_fb_fail}$_fk|$_fv
 " ;;
       esac
-    done < "$HC_DATA/soff_data.save"
+    done 3< "$HC_DATA/soff_data.save"
     if [ -n "$_fb_fail" ]; then
       printf '%s' "$_fb_fail" > "$HC_DATA/soff_data.save" || _fb_rc=1
     else

@@ -92,7 +92,7 @@ radio_restore() {
   # only what was really put back is dropped: a radio that could not be restored stays in the
   # file and is tried again at the next screen-on or at the next boot
   _fail=""
-  while IFS='|' read -r _rk _rv; do
+  while IFS='|' read -r _rk _rv <&3; do
     case "$_rk" in
       loc)
         _ls=$(loc_now)
@@ -134,7 +134,7 @@ radio_restore() {
         [ "$(bt_now)" = off ] && _fail="$_fail$_rk|$_rv
 " ;;
     esac
-  done < "$RSAVE"
+  done 3< "$RSAVE"
   if [ -n "$_fail" ]; then
     printf '%s' "$_fail" > "$RSAVE"
   else
@@ -232,7 +232,7 @@ data_restore() {
   [ -s "$DSAVE" ] || return 0
   # only what was really put back is dropped: the rest stays saved for the next screen-on or boot
   _dfail=""
-  while IFS='|' read -r _dk _dr; do
+  while IFS='|' read -r _dk _dr <&3; do
     case "$_dk" in
       data)
         _dn=$(data_now)
@@ -248,7 +248,7 @@ data_restore() {
         _dfail="${_dfail}nfc|
 " ;;
     esac
-  done < "$DSAVE"
+  done 3< "$DSAVE"
   if [ -n "$_dfail" ]; then
     printf '%s' "$_dfail" > "$DSAVE"
   else

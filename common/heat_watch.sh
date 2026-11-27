@@ -75,7 +75,7 @@ rr_alive() {
   case "$_rq" in ''|*[!0-9]*) return 1 ;; esac
   grep -q rr_watch "/proc/$_rq/cmdline" 2>/dev/null
 }
-sget() { settings get "$1" "$2" 2>/dev/null; }
+sget() { settings get "$1" "$2" </dev/null 2>/dev/null; }
 sput() { cmd settings put "$1" "$2" "$3" </dev/null >/dev/null 2>&1 || settings put "$1" "$2" "$3" </dev/null >/dev/null 2>&1; [ "$(hz "$(sget "$1" "$2")")" = "$(hz "$3")" ]; }
 hz() { _h=${1%%.*}; case "$_h" in ''|*[!0-9]*) echo 0 ;; *) echo "$_h" ;; esac; }
 # set_low <ns> <key> <value>: lower a refresh setting and record what to put back
